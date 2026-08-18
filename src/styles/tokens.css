@@ -1,0 +1,58 @@
+:root {
+  --void: #07080c;
+  --overlay: #0e1628cc;
+  --overlay-solid: #0e1628;
+  --media-blue: #1a3a7a;
+  --ice: #c9d4e8;
+  --ice-dim: #8b97ad;
+  --amber: #e8a04a;
+  --peak: #ff4d2a;
+  --hud: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --sans: "Source Sans 3", "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --safe-bottom: max(16px, env(safe-area-inset-bottom));
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+  --glass: #c9d4e814;
+  --glass-strong: #c9d4e824;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--void);
+  color: var(--ice);
+  font-family: var(--sans);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+  border-radius: var(--radius-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

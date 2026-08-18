@@ -1,0 +1,58 @@
+{
+  "name": "now-playing",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Now Playing — Windows Media Player visualizations in the browser. Alchemy, Battery, Ambience, Bars and Waves. React + Three.js + WebGL + Web Audio.",
+  "keywords": [
+    "windows-media-player",
+    "wmp",
+    "visualizer",
+    "music-visualizer",
+    "audio-visualizer",
+    "alchemy",
+    "battery",
+    "ambience",
+    "bars-and-waves",
+    "plenoptic",
+    "webgl",
+    "threejs",
+    "webaudio",
+    "react",
+    "typescript",
+    "vite",
+    "now-playing"
+  ],
+  "homepage": "https://github.com/Manaiakalani/now-playing#readme",
+  "bugs": {
+    "url": "https://github.com/Manaiakalani/now-playing/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Manaiakalani/now-playing.git"
+  },
+  "license": "MIT",
+  "author": "Manaiakalani",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint src",
+    "preview": "vite preview",
+    "demo": "python3 scripts/generate-demo.py"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.185.4",
+    "@vitejs/plugin-react": "^6.0.4",
+    "oxlint": "^1.75.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.0"
+  }
+}

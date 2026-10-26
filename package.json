@@ -38,6 +38,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint src",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "demo": "python3 scripts/generate-demo.py"
   },
   "dependencies": {
@@ -53,6 +55,7 @@
     "@vitejs/plugin-react": "^6.0.4",
     "oxlint": "^1.75.0",
     "typescript": "~6.0.2",
-    "vite": "^8.3.4"
+    "vite": "^8.3.4",
+    "vitest": "^4.1.12"
   }
 }

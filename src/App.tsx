@@ -23,6 +23,7 @@ export default function App() {
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
   const [emptyHint, setEmptyHint] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const idleRef = useRef<number>(0);
 
@@ -30,76 +31,86 @@ export default function App() {
 
   useEffect(() => {
     const sync = () => {
-      if (engine.getInfo().source !== "none") setEmptyHint(false);
+      const info = engine.getInfo();
+      if (info.source !== "none") setEmptyHint(false);
+      setLoadError(info.error);
     };
     return engine.subscribe(sync);
   }, [engine]);
 
-  useEffect(() => {
-    const vis = findVis(catalog, visId);
-    const preset = findPreset(vis, presetId);
-    if (vis.id !== visId) setVisId(vis.id);
-    if (preset.id !== presetId) setPresetId(preset.id);
-    savePrefs({ visId: vis.id, presetId: preset.id, color });
-  }, [catalog, visId, presetId, color]);
+  // Normalize stale persisted ids during render instead of via setState in an
+  // effect: an unknown id simply resolves to the catalog fallback.
+  const activeVis = findVis(catalog, visId);
+  const activePreset = findPreset(activeVis, presetId);
 
-  const bumpHud = useCallback(() => {
-    setHudVisible(true);
+  useEffect(() => {
+    savePrefs({ visId: activeVis.id, presetId: activePreset.id, color });
+  }, [activeVis, activePreset, color]);
+
+  const armIdleTimer = useCallback(() => {
     window.clearTimeout(idleRef.current);
     idleRef.current = window.setTimeout(() => {
       if (!catalogOpen) setHudVisible(false);
     }, 2800);
   }, [catalogOpen]);
 
+  const bumpHud = useCallback(() => {
+    setHudVisible(true);
+    armIdleTimer();
+  }, [armIdleTimer]);
+
   useEffect(() => {
-    bumpHud();
-    const onMove = () => bumpHud();
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("keydown", onMove);
+    // The HUD starts visible; only the hide timer needs arming on mount.
+    armIdleTimer();
+    const onActivity = () => bumpHud();
+    window.addEventListener("pointermove", onActivity);
+    window.addEventListener("keydown", onActivity);
     return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("keydown", onMove);
+      window.removeEventListener("pointermove", onActivity);
+      window.removeEventListener("keydown", onActivity);
       window.clearTimeout(idleRef.current);
     };
-  }, [bumpHud]);
+  }, [armIdleTimer, bumpHud]);
 
   const cycleVis = useCallback(
     (dir: number) => {
-      const i = catalog.findIndex((v) => v.id === visId);
+      const i = catalog.findIndex((v) => v.id === activeVis.id);
       const next = catalog[stepIndex(catalog.length, i < 0 ? 0 : i, dir)]!;
       setVisId(next.id);
       setPresetId(next.presets[0]!.id);
     },
-    [catalog, visId],
+    [catalog, activeVis],
   );
 
   const cyclePreset = useCallback(
     (dir: number) => {
-      const vis = findVis(catalog, visId);
-      const i = vis.presets.findIndex((p) => p.id === presetId);
-      const next = vis.presets[stepIndex(vis.presets.length, i < 0 ? 0 : i, dir)]!;
+      const i = activeVis.presets.findIndex((p) => p.id === activePreset.id);
+      const next =
+        activeVis.presets[stepIndex(activeVis.presets.length, i < 0 ? 0 : i, dir)]!;
       setPresetId(next.id);
     },
-    [catalog, visId, presetId],
+    [activeVis, activePreset],
   );
 
   const pickRandom = useCallback(() => {
-    const vis = findVis(catalog, visId);
-    const random = vis.presets.find((p) => p.id === "random" || p.id === "randomization");
+    const random = activeVis.presets.find(
+      (p) => p.id === "random" || p.id === "randomization",
+    );
     if (random) {
       setPresetId(random.id);
       return;
     }
-    const pick = vis.presets[Math.floor(Math.random() * vis.presets.length)];
+    const pick = activeVis.presets[Math.floor(Math.random() * activeVis.presets.length)];
     if (pick) setPresetId(pick.id);
-  }, [catalog, visId]);
+  }, [activeVis]);
 
   const openFile = useCallback(() => fileRef.current?.click(), []);
 
   const onFile = useCallback(
     (file: File) => {
-      setEmptyHint(false);
-      void engine.playFile(file);
+      void engine.playFile(file).then((ok) => {
+        if (ok) setEmptyHint(false);
+      });
     },
     [engine],
   );
@@ -159,8 +170,8 @@ export default function App() {
         <Stage
           engine={engine}
           catalog={catalog}
-          visId={visId}
-          presetId={presetId}
+          visId={activeVis.id}
+          presetId={activePreset.id}
           color={color}
         />
         {emptyHint ? (
@@ -168,9 +179,10 @@ export default function App() {
             <p className="welcome-kicker">Windows Media Player tribute</p>
             <h1>Now Playing</h1>
             <p>
-              Drop a track, open a file, or start the demo. The field keeps breathing
-              either way.
+              Drop a track, open a file, or start the demo. Color only lands while
+              music is playing; when it stops, the field fades out.
             </p>
+            {loadError ? <p className="welcome-error">{loadError}</p> : null}
             <div className="welcome-actions">
               <button
                 type="button"
@@ -191,8 +203,8 @@ export default function App() {
         <Hud
           engine={engine}
           catalog={catalog}
-          visId={visId}
-          presetId={presetId}
+          visId={activeVis.id}
+          presetId={activePreset.id}
           color={color}
           hudVisible={hudVisible}
           catalogOpen={catalogOpen}
@@ -206,8 +218,8 @@ export default function App() {
         <Catalog
           open={catalogOpen}
           catalog={catalog}
-          visId={visId}
-          presetId={presetId}
+          visId={activeVis.id}
+          presetId={activePreset.id}
           onClose={() => setCatalogOpen(false)}
           onPick={(v, p) => {
             setVisId(v);

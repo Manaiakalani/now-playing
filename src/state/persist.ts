@@ -1,4 +1,5 @@
 import {
+  COLOR_THEMES,
   DEFAULT_COLOR,
   type ColorSettings,
   type ColorThemeId,
@@ -19,15 +20,7 @@ const FALLBACK: Prefs = {
   color: DEFAULT_COLOR,
 };
 
-const THEMES: ColorThemeId[] = [
-  "preset",
-  "amber",
-  "ice",
-  "rose",
-  "lime",
-  "violet",
-  "fire",
-];
+const THEMES: ColorThemeId[] = COLOR_THEMES.map((t) => t.id);
 
 function parseColor(data: Partial<ColorSettings> | undefined): ColorSettings {
   const theme = data?.theme;

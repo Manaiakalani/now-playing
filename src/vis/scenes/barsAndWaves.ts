@@ -1,10 +1,24 @@
 import * as THREE from "three";
 import { logSpectrum } from "../../audio/features.ts";
 import type { AudioFrame } from "../../audio/features.ts";
-import { resolveHex, resolvePalette, type ColorSettings } from "../color.ts";
+import {
+  resolveHex,
+  resolvePalette,
+  rotateHex,
+  themeById,
+  type ColorSettings,
+} from "../color.ts";
 import type { AnyPreset, BarsPreset, VisContext, Visualization } from "../types.ts";
 
-const BAR_COUNT = 48;
+const BAR_COUNT = 80;
+
+// WMP XP reference colors (wmpvis wiki gallery): Bars and Scope are
+// yellow-green with small white peak caps; Ocean Mist is a pure-blue filled
+// spectrum silhouette with white mist sparkle; Fire Storm is the same
+// silhouette in orange with a dark-red feathered fringe.
+const BAR_GREEN = "#9acd32";
+const CAP_WHITE = "#f4f8ec";
+const SCOPE_GREEN = "#a8d820";
 
 const SPECTRUM_VERT = /* glsl */ `
 varying vec2 vUv;
@@ -14,11 +28,13 @@ void main() {
 }
 `;
 
+// Filled spectrum silhouette with per-column feathered striations, matching
+// the WMP Ocean Mist / Fire Storm look (not layered scrolling mountains).
 const SPECTRUM_FRAG = /* glsl */ `
 precision highp float;
 uniform sampler2D tFreq;
+uniform vec2 uResolution;
 uniform float uMode;
-uniform float uTime;
 uniform float uBass;
 uniform float uAlive;
 uniform vec3 uDeep;
@@ -28,33 +44,35 @@ varying vec2 vUv;
 
 float spec(float x) {
   float t = pow(clamp(x, 0.0, 1.0), 1.15);
-  return texture2D(tFreq, vec2(t, 0.5)).r * uAlive;
+  return texture2D(tFreq, vec2(t, 0.5)).r;
+}
+
+float hash(float n) {
+  return fract(sin(n * 127.1) * 43758.5453);
 }
 
 void main() {
-  float scroll = vUv.x + uTime * 0.03 * uAlive;
-  float h1 = spec(fract(scroll));
-  float h2 = spec(fract(scroll + 0.02)) * 0.72 + spec(fract(scroll)) * 0.28;
-  float h3 = spec(fract(scroll * 0.85 + 0.05)) * 0.5;
+  float px = floor(vUv.x * uResolution.x);
+  float n = hash(px);
+  float s = clamp(spec(vUv.x) * 1.9, 0.0, 1.0);
+  float h = pow(s, 0.8) * 0.7 * (0.3 + 0.7 * uAlive) + 0.03 * uAlive;
   float y = vUv.y;
-  vec3 col = uDeep * 0.35;
 
+  float fill = step(y, h);
+  float reach = h + n * (0.08 + 0.3 * s);
+  float feather = step(y, reach) * (1.0 - fill);
+
+  vec3 col;
   if (uMode < 0.5) {
-    float m1 = smoothstep(h1 + 0.02, h1 - 0.02, y);
-    float m2 = smoothstep(h2 + 0.03, h2, y) * 0.65;
-    float m3 = smoothstep(h3 + 0.04, h3, y) * 0.4;
-    col = mix(uDeep, uMid, m3);
-    col = mix(col, uMid, m2);
-    col = mix(col, uHot, m1 * (0.55 + uBass * 0.18));
-    col += uMid * (1.0 - y) * 0.15;
+    col = fill * uMid;
+    col += feather * uMid * (0.55 + 0.45 * n);
+    float sparkle = step(0.982, hash(px * 0.73 + floor(y * uResolution.y) * 0.61));
+    col += (feather + fill * step(h - 0.02, y)) * sparkle * uHot * (0.6 + uBass * 0.5);
   } else {
-    float m1 = smoothstep(h1 + 0.02, h1 - 0.015, y);
-    float m2 = smoothstep(h2 + 0.04, h2, y);
-    col = mix(uDeep, uMid, m2);
-    col = mix(col, uHot, m1);
-    col = mix(col, vec3(1.0, 0.92, 0.72), m1 * h1 * h1 * 0.65);
+    col = fill * uMid;
+    col += feather * mix(uDeep, uMid, n * n * 0.55);
   }
-  col *= max(0.04, uAlive);
+  col *= max(0.12, uAlive);
   gl_FragColor = vec4(col, 1.0);
 }
 `;
@@ -99,13 +117,13 @@ export function createBarsAndWaves(): Visualization {
 
       const barGeo = new THREE.BoxGeometry(1, 1, 1);
       barGeo.translate(0, 0.5, 0);
-      barMat = new THREE.MeshBasicMaterial({ color: 0x3aa0c8 });
+      barMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(BAR_GREEN) });
       bars = new THREE.InstancedMesh(barGeo, barMat, BAR_COUNT);
       bars.frustumCulled = false;
       scene.add(bars);
 
       const capGeo = new THREE.BoxGeometry(1, 1, 1);
-      capMat = new THREE.MeshBasicMaterial({ color: 0xe8a04a });
+      capMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(CAP_WHITE) });
       caps = new THREE.InstancedMesh(capGeo, capMat, BAR_COUNT);
       caps.frustumCulled = false;
       scene.add(caps);
@@ -114,7 +132,7 @@ export function createBarsAndWaves(): Visualization {
       const pts = new Float32Array(256 * 3);
       scopePos = new THREE.BufferAttribute(pts, 3);
       scopeGeo.setAttribute("position", scopePos);
-      scopeMat = new THREE.LineBasicMaterial({ color: 0x9ad4e8 });
+      scopeMat = new THREE.LineBasicMaterial({ color: new THREE.Color(SCOPE_GREEN) });
       scope = new THREE.Line(scopeGeo, scopeMat);
       scope.visible = false;
       scene.add(scope);
@@ -124,13 +142,13 @@ export function createBarsAndWaves(): Visualization {
         fragmentShader: SPECTRUM_FRAG,
         uniforms: {
           tFreq: { value: freqTex },
+          uResolution: { value: new THREE.Vector2(1, 1) },
           uMode: { value: 0 },
-          uTime: { value: 0 },
           uBass: { value: 0 },
           uAlive: { value: 0 },
-          uDeep: { value: new THREE.Color("#041018") },
-          uMid: { value: new THREE.Color("#1a6a8a") },
-          uHot: { value: new THREE.Color("#d5f4f2") },
+          uDeep: { value: new THREE.Color("#3a0a02") },
+          uMid: { value: new THREE.Color("#1414f0") },
+          uHot: { value: new THREE.Color("#ffffff") },
         },
         depthTest: false,
       });
@@ -147,33 +165,36 @@ export function createBarsAndWaves(): Visualization {
       if (scope) scope.visible = mode === "scope";
       if (mountains) mountains.visible = mode === "ocean" || mode === "fire";
 
-      const barHex = resolveHex("#3aa0c8", color);
-      const capHex = resolveHex("#e8a04a", color);
-      barMat?.color.set(barHex);
-      capMat?.color.set(capHex);
-      scopeMat?.color.set(resolveHex("#9ad4e8", color));
+      const themePal = themeById(color.theme).palette;
+      barMat?.color.set(resolveHex(BAR_GREEN, color));
+      capMat?.color.set(
+        themePal ? rotateHex(themePal[themePal.length - 1]!, color.hue) : CAP_WHITE,
+      );
+      scopeMat?.color.set(resolveHex(SCOPE_GREEN, color));
 
       if (mode === "bars" && bars && caps) {
         const fall = audio.playing ? 5.2 : 1.6;
         for (let i = 0; i < BAR_COUNT; i++) {
           const t = i / (BAR_COUNT - 1);
           const raw = logSpectrum(audio.freq, t);
-          const target = Math.pow(raw, 1.08);
+          // Soft-knee boost plus a high-frequency tilt so the whole width
+          // participates, like the original's per-band scaling.
+          const target = Math.min(1, Math.pow(raw, 0.58) * (0.55 + 0.85 * t));
           const prev = levels[i] ?? 0;
           const next = target > prev ? target : prev * Math.exp(-fall * dt);
           levels[i] = next;
           const pk = peaks[i] ?? 0;
           peaks[i] = target > pk ? target : pk - dt * (audio.playing ? 0.22 : 0.12);
-          const h = Math.max(0.004, next * 1.12) * Math.max(0.04, alive);
-          const x = (i / (BAR_COUNT - 1)) * 1.86 - 0.93;
-          const w = 1.72 / BAR_COUNT;
-          dummy.position.set(x, -0.55, 0);
-          dummy.scale.set(w * 0.78, h, 0.2);
+          const h = Math.max(0.004, next * 1.16) * Math.max(0.04, alive);
+          const x = (i / (BAR_COUNT - 1)) * 1.94 - 0.97;
+          const w = 1.94 / BAR_COUNT;
+          dummy.position.set(x, -0.62, 0);
+          dummy.scale.set(w * 0.68, h, 0.2);
           dummy.rotation.set(0, 0, 0);
           dummy.updateMatrix();
           bars.setMatrixAt(i, dummy.matrix);
-          dummy.position.set(x, -0.55 + (peaks[i] ?? 0) * 1.12 + 0.01, 0);
-          dummy.scale.set(w * 0.78, 0.01, 0.2);
+          dummy.position.set(x, -0.62 + (peaks[i] ?? 0) * 1.16 + 0.012, 0);
+          dummy.scale.set(w * 0.68, 0.008, 0.2);
           dummy.updateMatrix();
           caps.setMatrixAt(i, dummy.matrix);
         }
@@ -198,17 +219,18 @@ export function createBarsAndWaves(): Visualization {
       if ((mode === "ocean" || mode === "fire") && mountainMat) {
         const pal = resolvePalette(
           mode === "fire"
-            ? ["#100404", "#e05018", "#ffd080"]
-            : ["#041018", "#1a6a8a", "#d5f4f2"],
+            ? ["#4a0a02", "#ffa000", "#ffe0a0"]
+            : ["#04041a", "#1414f0", "#ffffff"],
           color,
         );
+        const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+        (mountainMat.uniforms.uResolution!.value as THREE.Vector2).set(size.x, size.y);
         mountainMat.uniforms.uMode!.value = mode === "fire" ? 1 : 0;
-        mountainMat.uniforms.uTime!.value += audio.playing ? dt : 0;
         mountainMat.uniforms.uBass!.value = audio.bassAtt;
         mountainMat.uniforms.uAlive!.value = alive;
-        (mountainMat.uniforms.uDeep!.value as THREE.Color).set(pal[0] ?? "#041018");
-        (mountainMat.uniforms.uMid!.value as THREE.Color).set(pal[1] ?? "#1a6a8a");
-        (mountainMat.uniforms.uHot!.value as THREE.Color).set(pal[2] ?? "#d5f4f2");
+        (mountainMat.uniforms.uDeep!.value as THREE.Color).set(pal[0] ?? "#04041a");
+        (mountainMat.uniforms.uMid!.value as THREE.Color).set(pal[1] ?? "#1414f0");
+        (mountainMat.uniforms.uHot!.value as THREE.Color).set(pal[2] ?? "#ffffff");
       }
 
       renderer.render(scene, camera);

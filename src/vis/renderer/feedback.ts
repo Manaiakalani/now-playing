@@ -1,6 +1,11 @@
 import * as THREE from "three";
 import type { AudioFrame } from "../../audio/features.ts";
-import { resolvePalette, type ColorSettings } from "../color.ts";
+import {
+  resolvePalette,
+  rotateHex,
+  themeById,
+  type ColorSettings,
+} from "../color.ts";
 import type { FeedbackPreset } from "../types.ts";
 import type { AudioTextures } from "./audioTextures.ts";
 import { makePaletteTexture, writePalette } from "./palette.ts";
@@ -25,23 +30,17 @@ uniform float uBass;
 uniform float uMid;
 uniform float uTreble;
 uniform float uRms;
-uniform float uPeak;
-uniform float uBeat;
-uniform float uFlux;
 uniform float uShift;
 uniform float uDraw;
 uniform float uDecay;
 uniform float uHueShift;
 uniform float uShiftStrength;
 uniform float uInk;
-uniform float uFlash;
 uniform float uKaleidoSlices;
 uniform float uSeed;
-uniform float uPaletteLocked;
-uniform float uAlive;
-uniform float uIdle;
 uniform float uDrift;
 uniform float uPlaying;
+uniform vec3 uBase;
 varying vec2 vUv;
 
 float freqAt(float t) {
@@ -205,9 +204,54 @@ float inject(vec2 uv) {
     vec2 q = rotate(p, 0.5);
     float facet = abs(sin(q.x * 6.0) * sin(q.y * 5.0));
     ink = pow(facet, 4.0) * (0.15 + uTreble * 0.2);
-  } else {
+  } else if (uDraw < 15.5) {
     float lane = abs(p.y + 0.08 * sin(p.x * 2.0 + uTime * 0.15));
     ink = smoothstep(0.05, 0.0, lane) * (0.22 + energy * 0.25);
+  } else if (uDraw < 16.5) {
+    // Squiggly waveform rings (Alchemy): the ring radius is the live
+    // waveform, sampled at two angular rates plus angular jitter so the ring
+    // scribbles rather than reading as a clean circle.
+    float ang = fract(a / 6.2831853 + 0.5);
+    float jag1 = (sin(a * 9.0 + uTime * 0.7) + 0.7 * sin(a * 17.0 - uTime * 0.5)) * (0.012 + uTreble * 0.02);
+    float w1 = waveAt(ang) + 0.55 * waveAt(fract(ang * 3.0 + 0.13));
+    float t1 = 0.30 + w1 * (0.09 + uRms * 0.12) + jag1;
+    ink = smoothstep(0.014, 0.0, abs(r - t1)) * (0.4 + energy * 0.5);
+    float jag2 = (sin(a * 11.0 - uTime * 0.6) + 0.7 * sin(a * 21.0 + uTime * 0.4)) * (0.01 + uTreble * 0.016);
+    float w2 = waveAt(fract(ang + 0.37)) + 0.55 * waveAt(fract(ang * 4.0 + 0.61));
+    float t2 = 0.19 + w2 * (0.06 + uMid * 0.07) + jag2;
+    ink += smoothstep(0.012, 0.0, abs(r - t2)) * (0.28 + energy * 0.3);
+  } else if (uDraw < 17.5) {
+    // Feathery radial fan (Battery brightsphere): thin streaks from a
+    // bright core, lengths driven by the spectrum at each angle.
+    float streak = pow(abs(sin(a * 14.0 + uTime * 0.12 + uSeed * 6.0)), 6.0);
+    float f = freqAt(fract(abs(a) / 3.14159));
+    ink = streak * smoothstep(0.7, 0.04, r) * (0.1 + f * 0.3 + energy * 0.2);
+    ink += smoothstep(0.15, 0.0, r) * (0.3 + uBass * 0.3);
+  } else if (uDraw < 18.5) {
+    // Twin waveform traces above and below a soft radial fan (Ambience Swirl).
+    // Two waveform taps make the lines properly jagged; traces are drawn hot
+    // so they read as crisp lines despite the ink scale.
+    float j1 = waveAt(uv.x) * 0.05 + waveAt(fract(uv.x * 3.0 + 0.29)) * 0.035;
+    float j2 = waveAt(fract(uv.x + 0.5)) * 0.05 + waveAt(fract(uv.x * 3.0 + 0.71)) * 0.035;
+    float d1 = abs(p.y - (0.30 + j1));
+    float d2 = abs(p.y + (0.30 + j2));
+    ink = smoothstep(0.01, 0.0, d1) * (1.4 + energy * 0.5);
+    ink += smoothstep(0.01, 0.0, d2) * (1.4 + energy * 0.5);
+    float fan = pow(abs(sin(a * 22.0)), 4.0) * smoothstep(0.62, 0.04, r);
+    ink += fan * (0.05 + uBass * 0.1);
+  } else if (uDraw < 19.5) {
+    // Spiral sheets of dots (Musical Colors "Colors in Motion").
+    float spiral = fract(a / 6.2831853 * 3.0 - r * 2.1 + uTime * 0.05);
+    float band = smoothstep(0.34, 0.1, abs(spiral - 0.5));
+    vec2 gp = p * 44.0;
+    float dotm = smoothstep(0.32, 0.06, length(fract(gp) - 0.5));
+    ink = band * dotm * smoothstep(0.9, 0.15, r) * (0.22 + energy * 0.5);
+  } else {
+    // Soft full-width aurora band (Musical Colors "Aurora").
+    float wobble = sin(p.x * 1.3 + uTime * 0.07) * 0.1 + waveAt(uv.x) * 0.04;
+    float band = exp(-pow((p.y + wobble) * 3.0, 2.0));
+    float stripe = 0.88 + 0.12 * sin(uv.x * 140.0);
+    ink = band * stripe * (0.16 + energy * 0.35);
   }
 
   return ink;
@@ -218,8 +262,27 @@ void main() {
   vec3 prev = texture2D(tPrev, uvShift).rgb * uDecay;
   float ink = inject(vUv) * uInk;
   float look = clamp(0.22 + uHueShift * 0.12 + uBass * 0.08, 0.02, 0.98);
+  // Spatially varying palette lookup for the modes whose originals are
+  // multicolored within a single frame.
+  vec2 pm = vUv - 0.5;
+  pm.x *= uResolution.x / max(uResolution.y, 1.0);
+  if (uDraw > 17.5 && uDraw < 18.5) {
+    // Ambience Swirl: the waveform traces sit near y = ±0.3 and must be
+    // bright salmon against the dark red fan.
+    float traceD = min(abs(pm.y - 0.3), abs(pm.y + 0.3));
+    look = mix(0.92, 0.3, smoothstep(0.0, 0.09, traceD));
+  } else if (uDraw > 18.5 && uDraw < 19.5) {
+    // Rainbow sweep around the spiral (Colors in Motion).
+    float am = atan(pm.y, pm.x);
+    look = fract(am / 6.2831853 + length(pm) * 1.2 + uHueShift * 0.06);
+  } else if (uDraw > 19.5) {
+    // Aurora: white-hot at the band centre, dark red toward the edges.
+    look = clamp(0.9 - abs(pm.y) * 2.4, 0.02, 0.98);
+  }
   vec3 inkCol = texture2D(tPalette, vec2(look, 0.5)).rgb;
-  vec3 col = prev + inkCol * ink;
+  // Presets can tint the whole field (the XP originals fill the screen with
+  // color); the base is gated on uPlaying so pause still fades to black.
+  vec3 col = prev + inkCol * ink + uBase * (1.0 - uDecay) * uPlaying;
   col = max(col, vec3(0.0));
   gl_FragColor = vec4(min(col, vec3(1.0)), 1.0);
 }
@@ -260,8 +323,8 @@ export class FeedbackEngine {
   private inner: FeedbackPreset | null = null;
   private reduced = false;
   private time = 0;
-  private flash = 0;
   private hue = 0;
+  private readonly baseColor = new THREE.Color(0x000000);
 
   constructor(renderer: THREE.WebGLRenderer, audioTextures: AudioTextures) {
     this.renderer = renderer;
@@ -284,23 +347,17 @@ export class FeedbackEngine {
         uMid: { value: 0 },
         uTreble: { value: 0 },
         uRms: { value: 0 },
-        uPeak: { value: 0 },
-        uBeat: { value: 0 },
-        uFlux: { value: 0 },
         uShift: { value: 0 },
         uDraw: { value: 0 },
         uDecay: { value: 0.96 },
         uHueShift: { value: 0 },
         uShiftStrength: { value: 1 },
         uInk: { value: 1 },
-        uFlash: { value: 0 },
         uKaleidoSlices: { value: 6 },
         uSeed: { value: 0.3 },
-        uPaletteLocked: { value: 1 },
-        uAlive: { value: 0 },
-        uIdle: { value: 0 },
         uDrift: { value: 0.2 },
         uPlaying: { value: 0 },
+        uBase: { value: new THREE.Color(0x000000) },
       },
       depthTest: false,
       depthWrite: false,
@@ -360,9 +417,7 @@ export class FeedbackEngine {
     color: ColorSettings,
   ): void {
     const inner = this.pickInner(preset, catalog, audio.playing ? dt : 0);
-    const alive = audio.playing ? Math.max(0.85, audio.activity) : audio.activity;
     this.time += dt * (this.reduced ? 0.2 : audio.playing ? 1 : 0.15);
-    this.flash = 0;
     if (audio.playing) {
       const hueRate = inner.paletteLocked ? inner.hueSpeed * 0.08 : inner.hueSpeed * 0.35;
       this.hue += hueRate * dt;
@@ -374,6 +429,19 @@ export class FeedbackEngine {
       writePalette(this.palette, resolved);
       this.paletteKey = key;
     }
+
+    // Base field tint: follow the color-wash theme when one is active,
+    // otherwise the preset's own base (defaulting to black). The hex must be
+    // loaded without color-management conversion — the feedback pipeline
+    // writes raw values to the canvas, so a linearized base would display
+    // several times darker than intended.
+    const themePalette = themeById(color.theme).palette;
+    const baseHex = themePalette
+      ? rotateHex(themePalette[0]!, color.hue)
+      : inner.base
+        ? rotateHex(inner.base, color.hue)
+        : "#000000";
+    this.baseColor.setStyle(baseHex, THREE.LinearSRGBColorSpace);
 
     let decay = inner.decay;
     let ink = inner.ink;
@@ -400,23 +468,17 @@ export class FeedbackEngine {
     u.uMid!.value = audio.midAtt;
     u.uTreble!.value = audio.trebleAtt;
     u.uRms!.value = audio.rmsAtt;
-    u.uPeak!.value = audio.peak * 0.55;
-    u.uBeat!.value = audio.pulse;
-    u.uFlux!.value = audio.beat.flux * 0.35;
     u.uShift!.value = inner.shift;
     u.uDraw!.value = inner.draw;
     u.uDecay!.value = decay;
     u.uHueShift!.value = this.hue + color.hue;
     u.uShiftStrength!.value = shift;
     u.uInk!.value = ink;
-    u.uFlash!.value = this.flash;
     u.uKaleidoSlices!.value = inner.kaleidoSlices;
     u.uSeed!.value = inner.seed;
-    u.uPaletteLocked!.value = inner.paletteLocked ? 1 : 0;
-    u.uAlive!.value = audio.playing ? alive : 0;
-    u.uIdle!.value = 0;
     u.uDrift!.value = audio.playing ? (this.reduced ? 0.08 : 0.16) : 0.03;
     u.uPlaying!.value = audio.playing ? 1 : 0;
+    (u.uBase!.value as THREE.Color).copy(this.baseColor);
 
     const prevAuto = this.renderer.autoClear;
     this.renderer.autoClear = true;

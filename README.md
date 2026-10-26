@@ -4,6 +4,7 @@
 
 This is not a Windows Media Player chrome clone and not a MilkDrop / Butterchurn / projectM host. The canvas is the product.
 
+[![CI](https://github.com/Manaiakalani/now-playing/actions/workflows/ci.yml/badge.svg)](https://github.com/Manaiakalani/now-playing/actions/workflows/ci.yml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-149ECA?style=flat&logo=react&logoColor=white)](https://react.dev/)
 [![Three.js](https://img.shields.io/badge/Three.js-WebGL-000000?style=flat&logo=threedotjs&logoColor=white)](https://threejs.org/)
@@ -34,6 +35,7 @@ Open the printed local URL. Click **Play demo**, drop an MP3/WAV/FLAC, or use th
 ```bash
 npm run build    # production bundle
 npm run preview  # serve the build
+npm run test     # vitest (audio analysis + prefs)
 npm run lint     # oxlint
 npm run demo     # regenerate public/demo.wav
 ```

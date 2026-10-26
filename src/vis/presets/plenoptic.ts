@@ -5,6 +5,8 @@ function p(partial: Omit<FeedbackPreset, "kind">): FeedbackPreset {
 }
 
 export const plenopticPresets: FeedbackPreset[] = [
+  // XP reference: Plenoptic saturates the whole frame with bold color fields
+  // and flower-burst fractals, so each preset tints its base field.
   p({
     id: "smokey-circles",
     name: "Smokey Circles",
@@ -16,9 +18,9 @@ export const plenopticPresets: FeedbackPreset[] = [
     hueSpeed: 0.03,
     shiftStrength: 0.7,
     ink: 0.95,
-    flashOnBeat: false,
     kaleidoSlices: 6,
     seed: 0.22,
+    base: "#0b3a2e",
   }),
   p({
     id: "fountain",
@@ -31,9 +33,9 @@ export const plenopticPresets: FeedbackPreset[] = [
     hueSpeed: 0,
     shiftStrength: 1,
     ink: 1.2,
-    flashOnBeat: true,
     kaleidoSlices: 6,
     seed: 0.4,
+    base: "#4a1410",
   }),
   p({
     id: "vox",
@@ -46,9 +48,9 @@ export const plenopticPresets: FeedbackPreset[] = [
     hueSpeed: 0.01,
     shiftStrength: 0.85,
     ink: 1.05,
-    flashOnBeat: false,
     kaleidoSlices: 6,
     seed: 0.61,
+    base: "#241040",
   }),
   p({
     id: "spyro",
@@ -61,8 +63,8 @@ export const plenopticPresets: FeedbackPreset[] = [
     hueSpeed: 0.015,
     shiftStrength: 1.1,
     ink: 1,
-    flashOnBeat: true,
     kaleidoSlices: 6,
     seed: 0.17,
+    base: "#12451e",
   }),
 ];

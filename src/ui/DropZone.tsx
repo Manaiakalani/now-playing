@@ -17,8 +17,7 @@ export function DropZone({ onFile, children }: Props) {
     e.preventDefault();
     setOver(false);
     const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("audio")) onFile(file);
-    else if (file) onFile(file);
+    if (file) onFile(file);
   };
 
   return (

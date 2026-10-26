@@ -1,3 +1,4 @@
+import { validateAudioFile } from "./audioFile.ts";
 import {
   analyzeFrame,
   applyEnvelopes,
@@ -28,6 +29,7 @@ export class AudioEngine {
   private streamNode: MediaStreamAudioSourceNode | null = null;
   private stream: MediaStream | null = null;
   private objectUrl: string | null = null;
+  private elementAbort: AbortController | null = null;
   private readonly frame: AudioFrame;
   private readonly beat;
   private readonly envelope;
@@ -83,6 +85,8 @@ export class AudioEngine {
   }
 
   private disconnectSources(): void {
+    this.elementAbort?.abort();
+    this.elementAbort = null;
     this.mediaNode?.disconnect();
     this.mediaNode = null;
     this.streamNode?.disconnect();
@@ -103,15 +107,19 @@ export class AudioEngine {
   }
 
   private hookElement(el: HTMLAudioElement, ctx: AudioContext): void {
-    el.addEventListener("play", () => this.emit());
-    el.addEventListener("pause", () => this.emit());
-    el.addEventListener("ended", () => this.emit());
-    el.addEventListener("timeupdate", () => this.emit());
-    el.addEventListener("loadedmetadata", () => this.emit());
+    this.elementAbort?.abort();
+    this.elementAbort = new AbortController();
+    const { signal } = this.elementAbort;
+    const emit = () => this.emit();
+    el.addEventListener("play", emit, { signal });
+    el.addEventListener("pause", emit, { signal });
+    el.addEventListener("ended", emit, { signal });
+    el.addEventListener("timeupdate", emit, { signal });
+    el.addEventListener("loadedmetadata", emit, { signal });
     el.addEventListener("error", () => {
       this.error = "Could not decode that audio file.";
       this.emit();
-    });
+    }, { signal });
     this.mediaNode = ctx.createMediaElementSource(el);
     if (this.master) this.mediaNode.connect(this.master);
   }
@@ -128,11 +136,16 @@ export class AudioEngine {
     this.hookElement(el, ctx);
     this.source = "demo";
     this.title = "Demo loop";
-    await el.play();
-    this.emit();
+    await this.startPlayback(el);
   }
 
-  async playFile(file: File): Promise<void> {
+  async playFile(file: File): Promise<boolean> {
+    const problem = validateAudioFile(file);
+    if (problem) {
+      this.error = problem;
+      this.emit();
+      return false;
+    }
     this.error = null;
     const ctx = await this.ensureGraph();
     this.disconnectSources();
@@ -145,8 +158,21 @@ export class AudioEngine {
     this.hookElement(el, ctx);
     this.source = "file";
     this.title = file.name.replace(/\.[^.]+$/, "");
-    await el.play();
-    this.emit();
+    return this.startPlayback(el);
+  }
+
+  /** `HTMLMediaElement.play()` rejects on decode failures and autoplay policy;
+   *  surface that as an engine error instead of an unhandled rejection. */
+  private async startPlayback(el: HTMLAudioElement): Promise<boolean> {
+    try {
+      await el.play();
+      this.emit();
+      return true;
+    } catch {
+      if (!this.error) this.error = "Could not start playback for that audio.";
+      this.emit();
+      return false;
+    }
   }
 
   async playMic(): Promise<void> {
@@ -180,8 +206,11 @@ export class AudioEngine {
     if (this.source === "mic") return;
     if (!this.element) return;
     await this.ensureGraph();
-    if (this.element.paused) await this.element.play();
-    else this.element.pause();
+    if (this.element.paused) {
+      await this.startPlayback(this.element);
+      return;
+    }
+    this.element.pause();
     this.emit();
   }
 
@@ -194,25 +223,21 @@ export class AudioEngine {
     this.emit();
   }
 
+  isPlaying(): boolean {
+    if (this.source === "mic") return true;
+    return Boolean(this.element && !this.element.paused && !this.element.ended);
+  }
+
   getInfo(): EngineInfo {
     const el = this.element;
-    const playing =
-      this.source === "mic"
-        ? true
-        : Boolean(el && !el.paused && !el.ended);
     return {
-      playing,
+      playing: this.isPlaying(),
       currentTime: el?.currentTime ?? 0,
       duration: el?.duration && Number.isFinite(el.duration) ? el.duration : 0,
       title: this.title,
       source: this.source,
       error: this.error,
     };
-  }
-
-  isPlaying(): boolean {
-    if (this.source === "mic") return true;
-    return Boolean(this.element && !this.element.paused && !this.element.ended);
   }
 
   sample(): AudioFrame {

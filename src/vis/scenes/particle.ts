@@ -16,9 +16,12 @@ export function createParticle(): Visualization {
   let pointsMat: THREE.PointsMaterial | null = null;
   let angle = 0;
   let time = 0;
+  let palKey = "";
   const heights = new Float32Array(N * N);
 
-  const baseColors = ["#c43b3b", "#7a3cb8", "#2d6cdf", "#2ec4c8"];
+  // WMP XP reference: a tilted sheet of tiny dots fading magenta at the far
+  // edge through violet and blue to cyan up close.
+  const baseColors = ["#d840d8", "#8848e0", "#3a78e0", "#30c8c4"];
 
   const presets: ParticlePreset[] = [
     { id: "particle", name: "Particle", kind: "particle", rotate: false },
@@ -32,6 +35,7 @@ export function createParticle(): Visualization {
     era: "WMP 7–10",
     presets,
     mount(ctx: VisContext) {
+      palKey = "";
       renderer = ctx.renderer;
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera(42, 1, 0.1, 40);
@@ -50,7 +54,8 @@ export function createParticle(): Visualization {
           positions[i * 3] = (x / (N - 1) - 0.5) * 3.2;
           positions[i * 3 + 1] = 0;
           positions[i * 3 + 2] = (y / (N - 1) - 0.5) * 3.2;
-          c.set(baseColors[(x + y) % baseColors.length]!);
+          // Depth gradient: far rows magenta, near rows cyan.
+          c.set(baseColors[Math.min(baseColors.length - 1, Math.floor((y / N) * baseColors.length))]!);
           cols[i * 3] = c.r;
           cols[i * 3 + 1] = c.g;
           cols[i * 3 + 2] = c.b;
@@ -63,7 +68,7 @@ export function createParticle(): Visualization {
       colAttr = new THREE.BufferAttribute(cols, 3);
       geo.setAttribute("color", colAttr);
       pointsMat = new THREE.PointsMaterial({
-        size: 0.07,
+        size: 0.035,
         vertexColors: true,
         sizeAttenuation: true,
         transparent: true,
@@ -79,13 +84,15 @@ export function createParticle(): Visualization {
       const alive = audio.activity;
       time += dt;
       const pal = resolvePalette(baseColors, color);
-      if (colAttr) {
+      const nextKey = `${color.theme}:${color.hue.toFixed(3)}:${pal.join(",")}`;
+      if (colAttr && nextKey !== palKey) {
+        palKey = nextKey;
         const cols = colAttr.array as Float32Array;
         const c = new THREE.Color();
         let k = 0;
         for (let y = 0; y < N; y++) {
           for (let x = 0; x < N; x++) {
-            c.set(pal[(x + y) % pal.length] ?? "#2ec4c8");
+            c.set(pal[Math.min(pal.length - 1, Math.floor((y / N) * pal.length))] ?? "#30c8c4");
             cols[k * 3] = c.r;
             cols[k * 3 + 1] = c.g;
             cols[k * 3 + 2] = c.b;
@@ -115,7 +122,7 @@ export function createParticle(): Visualization {
       }
       pos.needsUpdate = true;
       if (pointsMat) {
-        pointsMat.size = 0.04 + 0.05 * alive;
+        pointsMat.size = 0.024 + 0.022 * alive;
         pointsMat.opacity = Math.max(0.08, alive);
       }
       if (preset.rotate) {
@@ -139,6 +146,7 @@ export function createParticle(): Visualization {
       scene = null;
       camera = null;
       renderer = null;
+      palKey = "";
     },
   };
 }

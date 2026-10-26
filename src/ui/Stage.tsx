@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Vector2 } from "three";
 import type { AudioEngine } from "../audio/AudioEngine.ts";
 import { createLoop } from "../vis/loop.ts";
@@ -21,9 +21,15 @@ export function Stage({ engine, catalog, visId, presetId, color }: Props) {
   const visIdRef = useRef(visId);
   const presetIdRef = useRef(presetId);
   const colorRef = useRef(color);
-  visIdRef.current = visId;
-  presetIdRef.current = presetId;
-  colorRef.current = color;
+  const [glEpoch, setGlEpoch] = useState(0);
+
+  // Mirror the latest props into refs after render so the imperative render
+  // loop reads fresh values without re-running the WebGL mount effect.
+  useEffect(() => {
+    visIdRef.current = visId;
+    presetIdRef.current = presetId;
+    colorRef.current = color;
+  }, [visId, presetId, color]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -74,18 +80,24 @@ export function Stage({ engine, catalog, visId, presetId, color }: Props) {
 
     const onLost = (e: Event) => {
       e.preventDefault();
+      loop.stop();
+    };
+    const onRestored = () => {
+      setGlEpoch((n) => n + 1);
     };
     canvas.addEventListener("webglcontextlost", onLost);
+    canvas.addEventListener("webglcontextrestored", onRestored);
 
     return () => {
       loop.stop();
       ro.disconnect();
       canvas.removeEventListener("webglcontextlost", onLost);
+      canvas.removeEventListener("webglcontextrestored", onRestored);
       active?.dispose();
       audioTextures.dispose();
       renderer.dispose();
     };
-  }, [catalog, engine]);
+  }, [catalog, engine, glEpoch]);
 
   return <canvas ref={canvasRef} className="stage-canvas" />;
 }

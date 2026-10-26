@@ -20,9 +20,11 @@ export interface FeedbackPreset extends Preset {
   hueSpeed: number;
   shiftStrength: number;
   ink: number;
-  flashOnBeat: boolean;
   kaleidoSlices: number;
   seed: number;
+  /** Whole-field tint the buffer settles toward while audio plays
+   *  (the XP originals fill the screen with color rather than staying black). */
+  base?: string;
 }
 
 export interface BarsPreset extends Preset {
@@ -33,7 +35,6 @@ export interface BarsPreset extends Preset {
 export interface SpikesPreset extends Preset {
   kind: "spikes";
   mode: "spike" | "amoeba";
-  hue: number;
 }
 
 export interface ParticlePreset extends Preset {

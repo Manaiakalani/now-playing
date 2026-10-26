@@ -67,6 +67,11 @@
   line-height: 1.45;
 }
 
+.welcome-error {
+  color: var(--peak);
+  max-width: 32ch;
+}
+
 .welcome-actions {
   display: flex;
   gap: 0.7rem;

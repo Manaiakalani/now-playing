@@ -155,7 +155,7 @@ export function applyEnvelopes(frame: AudioFrame, env: EnvelopeState, dt: number
 /** Log-spaced spectrum sample in 0..1, matching final WMP Bars (linear bass, log above). */
 export function logSpectrum(freq: Uint8Array, t: number): number {
   const x = Math.min(1, Math.max(0, t));
-  const warped = x < 0.18 ? x * (0.18 / 0.18) * 0.12 : 0.12 + Math.pow((x - 0.18) / 0.82, 1.6) * 0.88;
+  const warped = x < 0.18 ? (x / 0.18) * 0.12 : 0.12 + Math.pow((x - 0.18) / 0.82, 1.6) * 0.88;
   const idx = warped * (freq.length - 1);
   const i = Math.floor(idx);
   const f = idx - i;

@@ -1,6 +1,6 @@
 # Now Playing
 
-**Windows Media Player visualizations in the browser.** Real-time Alchemy, Battery, Ambience, Bars and Waves, Spikes, Particle, Plenoptic, and Musical Colors — the classic WMP music visualizer catalog, rebuilt with React, Three.js, WebGL, and the Web Audio API.
+**Windows Media Player visualizations in the browser.** Real-time Alchemy, Battery, Ambience, Bars and Waves, Spikes, Particle, Plenoptic, and Musical Colors: the classic WMP music visualizer catalog, rebuilt with React, Three.js, WebGL, and the Web Audio API.
 
 This is not a Windows Media Player chrome clone and not a MilkDrop / Butterchurn / projectM host. The canvas is the product.
 
@@ -13,11 +13,11 @@ This is not a Windows Media Player chrome clone and not a MilkDrop / Butterchurn
 
 ## Features
 
-- 🎵 **Official WMP visualization families** — Ambience (Alchemy, Battery, Ambience), Bars and Waves (Bars, Ocean Mist, Fire Storm, Scope, Spikes, Particle), Musical Colors (Plenoptic + six Musical Colors presets)
+- 🎵 **Official WMP visualization families**: Ambience (Alchemy, Battery, Ambience), Bars and Waves (Bars, Ocean Mist, Fire Storm, Scope, Spikes, Particle), Musical Colors (Plenoptic + six Musical Colors presets)
 - 🎚️ **34 named presets** taken from the [WMP Visualization Wiki](https://wmpvis.fandom.com/wiki/Category:Visualizations)
-- 🔊 **Local files, microphone, or a bundled demo loop** — drag-and-drop audio, no account
-- 🌈 **Color wash** — keep each preset’s palette, or switch Amber / Ice / Rose / Lime / Violet / Fire and hue-shift
-- 🖥️ **Fullscreen Now Playing HUD** — WMP-style `Visualization` + preset lockup, seek, catalog
+- 🔊 **Local files, microphone, or a bundled demo loop**: drag-and-drop audio, no account
+- 🌈 **Color wash**: keep each preset’s palette, or switch Amber / Ice / Rose / Lime / Violet / Fire and hue-shift
+- 🖥️ **Fullscreen Now Playing HUD**: WMP-style `Visualization` + preset lockup, seek, catalog
 - ⌨️ Keyboard: space, arrows, `R` random, `F` fullscreen, `O` open, `M` mic, `C` catalog, `[` `]` color
 - ♿ `prefers-reduced-motion`, no ink when nothing is playing (no idle strobe)
 
@@ -68,7 +68,7 @@ Presets are data files under `src/vis/presets/`. The Ambience and Musical Colors
 
 ## Stack
 
-Vite 8, React 19, TypeScript, Three.js. The visualization loop is imperative — React never calls `WebGLRenderer.render`.
+Vite 8, React 19, TypeScript, Three.js. The visualization loop is imperative: React never calls `WebGLRenderer.render`.
 
 ## How this was designed
 

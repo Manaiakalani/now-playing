@@ -10,6 +10,9 @@ updates:
     ignore:
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
+      # CI and runtime are Node 22; keep @types/node on a matching line.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       npm-deps:
         patterns:
